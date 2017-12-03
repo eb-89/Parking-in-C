@@ -9,12 +9,23 @@
 
 int poisson(int lambda);
 void start_input(int *street_length_units);
+double normal(double mu, double sigma);
+
 
 typedef struct {
 	int is_occupied;
 	int arrival_time;
 	int departure_time;
 } Spot;
+
+double normal(double mu, double sigma)
+{
+	double u1 = ((double) rand() / (double) (RAND_MAX));
+	double u2 = ((double) rand() / (double) (RAND_MAX));
+
+	double z = sqrt(-2*log(u1))*cos(2*M_PI*u2);
+	return sqrt(sigma)*z + mu;
+}
 
 
 int poisson(int lambda)
@@ -104,7 +115,10 @@ int main(void) {
 						if (empty_slots == empty_slot_index) {
 							street[k].is_occupied = 1;
 							street[k].arrival_time = i;
-							street[k].departure_time = i + CAR_STAY_TIME;
+							//street[k].departure_time = i + CAR_STAY_TIME;
+							int stay_time = (int) ceil(normal(5,1));
+							printf("     Staying for: %d \n", stay_time);
+							street[k].departure_time = i + stay_time;
 							printf("     Filled slot at index: %d\n", k);
 						}
 
@@ -136,6 +150,7 @@ int main(void) {
 		for(j=0; j<street_length; j++) {
 			printf("%d", street[j].is_occupied);
 		}
+
 
 		printf(" \n\n");
 

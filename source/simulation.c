@@ -5,13 +5,12 @@
 #include <math.h>
 //#include "linkedlist.h"
 
-
-
-
-
-#define DAY_LENGTH 1//12*12
-#define CAR_STAY_TIME 3
-#define STREET_LENGTH 200.0
+#define VERBOSE 0
+#define DAY_LENGTH 60*12
+#define CAR_STAY_TIME_MU 10
+#define CAR_STAY_TIME_SIGMA 0.50
+#define NO_OF_CARS_POISSON 30
+#define STREET_LENGTH 500.0
 
 int poisson(int lambda);
 void start_input(int *street_length_units);
@@ -19,13 +18,7 @@ double normal(double mu, double sigma);
 
 
 typedef struct {
-	int is_occupied;
-	int arrival_time;
-	int departure_time;
-} Spot;
-
-
-typedef struct {
+	int car_nr;
 	double x;
 	double y;
 	int depart_time;
@@ -33,136 +26,7 @@ typedef struct {
 	double length;
 } Car;
 
-// A linked list node
-struct Node
-{
-    Car data;
-    struct Node *next;
-    struct Node *prev;
-};
- 
-/* Given a reference (pointer to pointer) to the head of a list
-   and an int, inserts a new node on the front of the list. */
-void push(struct Node** head_ref, Car new_data)
-{
-    /* 1. allocate node */
-    struct Node* new_node = (struct Node*) malloc(sizeof(struct Node));
- 
-    /* 2. put in the data  */
-    new_node->data  = new_data;
- 
-    /* 3. Make next of new node as head and previous as NULL */
-    new_node->next = (*head_ref);
-    new_node->prev = NULL;
- 
-    /* 4. change prev of head node to new node */
-    if((*head_ref) !=  NULL)
-      (*head_ref)->prev = new_node ;
- 
-    /* 5. move the head to point to the new node */
-    (*head_ref)    = new_node;
-}
- 
-/* Given a node as prev_node, insert a new node after the given node */
-void insertAfter(struct Node* prev_node, Car new_data)
-{
-    /*1. check if the given prev_node is NULL */
-    if (prev_node == NULL)
-    {
-        printf("the given previous node cannot be NULL");
-        return;
-    }
- 
-    /* 2. allocate new node */
-    struct Node* new_node =(struct Node*) malloc(sizeof(struct Node));
- 
-    /* 3. put in the data  */
-    new_node->data  = new_data;
- 
-    /* 4. Make next of new node as next of prev_node */
-    new_node->next = prev_node->next;
- 
-    /* 5. Make the next of prev_node as new_node */
-    prev_node->next = new_node;
- 
-    /* 6. Make prev_node as previous of new_node */
-    new_node->prev = prev_node;
- 
-    /* 7. Change previous of new_node's next node */
-    if (new_node->next != NULL)
-      new_node->next->prev = new_node;
-}
- 
-/* Given a reference (pointer to pointer) to the head
-   of a DLL and an int, appends a new node at the end  */
-void append(struct Node** head_ref, Car new_data)
-{
-    /* 1. allocate node */
-    struct Node* new_node = (struct Node*) malloc(sizeof(struct Node));
- 
-    struct Node *last = *head_ref;  /* used in step 5*/
- 
-    /* 2. put in the data  */
-    new_node->data  = new_data;
- 
-    /* 3. This new node is going to be the last node, so
-          make next of it as NULL*/
-    new_node->next = NULL;
- 
-    /* 4. If the Linked List is empty, then make the new
-          node as head */
-    if (*head_ref == NULL)
-    {
-        new_node->prev = NULL;
-        *head_ref = new_node;
-        return;
-    }
- 
-    /* 5. Else traverse till the last node */
-    while (last->next != NULL)
-        last = last->next;
- 
-    /* 6. Change the next of last node */
-    last->next = new_node;
- 
-    /* 7. Make last node as previous of new node */
-    new_node->prev = last;
- 
-    return;
-}
 
-int countList(struct Node *node)
-{
-    int n = 0;
-    struct Node *last;
-    while (node != NULL)
-    {
-        n++;
-
-        last = node;
-        node = node->next;
-    }
-}
-
-
-void printList(struct Node *node)
-{
-    struct Node *last;
-    printf("\nTraversal in forward direction \n");
-    while (node != NULL)
-    {
-        printf(" %f ", node->data.x);
-        last = node;
-        node = node->next;
-    }
- 
-    printf("\nTraversal in reverse direction \n");
-    while (last != NULL)
-    {
-        printf(" %f ", last->data.x);
-        last = last->prev;
-    }
-}
 
 
 double normal(double mu, double sigma)
@@ -206,10 +70,13 @@ void start_input(int *street_length_units)
 
 int main(void) {
 
+	FILE *fp;
+	fp = fopen("data.out", "wb");
+	fprintf(fp, "Iteration:  NumOfCars:  CarsThatDontFit:  FreeSpace:  PercentFreeSpace:\n" );
 
-	int street_length = 3;
-	int rate_of_arrival;
-	int rate_of_departure;
+	//int street_length = 5;
+	//int rate_of_arrival;
+	//int rate_of_departure;
 
 	//initialization
 	srand((unsigned) time(NULL));
@@ -222,51 +89,60 @@ int main(void) {
 
 
 	//reformulate in terms of a pointer to car.
-	Spot *street = malloc(sizeof(Spot) * street_length);
+	//Spot *street = malloc(sizeof(Spot) * street_length);
 
 	int n_cars = 0;
 	int used_space = 1;
+	int car_index = 0;
 	Car * cars_array = malloc(sizeof(Car) * used_space);
+	int i; //loop variable
 
-	//initalization, u can use calloc.
-	int i;
+	/*initalization, u can use calloc.
+	
 	for (i=0; i<street_length; i++) {
 		street[i].is_occupied = 0;
 	}
-
+	*/
 
 	//main iteration loop:	
 	for (i = 0; i < DAY_LENGTH; i++)	{
 
 		int j;
-		int cars_coming = 15; //poisson(3);
+		int cars_coming = poisson(NO_OF_CARS_POISSON);
+		int didnt_fit_counter = 0;
+		double total_free; //free space (written at the END of each iteration)
+		double total_free_percent;
 
 		if (n_cars + cars_coming >= used_space) {
 			used_space = n_cars + cars_coming;
 			cars_array = realloc(cars_array, sizeof(Car) * used_space);
 			if (cars_array == NULL) {
-				printf("Eroor\n");
+				printf("realloc Error\n");
 			}
 		}
 
-		printf("Iteration: %d: \n", i);
-		printf("  Cars coming for this iteration: %d \n", cars_coming);
-
+		if (VERBOSE) {
+			printf("---------Iteration: %d: \n", i);
+			printf("  Cars coming for this iteration: %d \n", cars_coming);
+		}
 		//here calculate empty spaces
 
 		for (j = 0; j<cars_coming;j++) {
-			
-			printf("Heres a new car\n\n");
 
 			Car new_car;
-			new_car.length = 5.0;
-			new_car.depart_time = 5;
+			new_car.car_nr = car_index;
+			new_car.length = 5;
+			new_car.depart_time = i + normal(CAR_STAY_TIME_MU,CAR_STAY_TIME_SIGMA);
+
+			car_index++;
 			
 			//new_car.x = 50.0;
 
-			printf("    Car: %d \n", j);
+			if (VERBOSE) {
+				printf("\n     Car: %d, staying 'til iteration %d  \n", new_car.car_nr, new_car.depart_time);
+			}
 
-			double (*distances)[2] = malloc(sizeof(double)*2 * (n_cars +1));
+			double (*distances)[2] = malloc(sizeof(double)*2*(n_cars +1));
 			if (distances == NULL) {
 				printf("Malloc Failed\n");
 			}
@@ -278,18 +154,21 @@ int main(void) {
 			for (k = 0; k<n_cars; k++) {
 				distances[k][1] = cars_array[k].x;
 				distances[k+1][0] = cars_array[k].x + cars_array[k].length;
-				if (k == 1 ) { printf("k == 1 cars_array[1].x is then %f\n", distances[k][1]);} 
 
 			}
 
-			//cars_array[0] = new_car;
+			//some prints
+			if (VERBOSE) {
+				printf("\n    Available empty slots for car %d: \n", new_car.car_nr);
+			
+				for (k = 0; k<n_cars+1; k++) {
+					printf("    %f %f \n" , distances[k][0], distances[k][1]);
 
-			printf("Here are the dists: \n");
-			for (k = 0; k<n_cars+1; k++) {
-				printf("%f %f \n" , distances[k][0], distances[k][1]);
-
+				}
 			}
 
+			//possible distances stores INDECES.
+			//The indeces are potential slots for inserting a new car.
 			int *possible_distances = malloc(sizeof(int)*(n_cars+1));
 
 			int m = 0;
@@ -310,45 +189,95 @@ int main(void) {
 
 				for (k = n_cars; k != index; k = k-1) {
 					
-					printf("moving slots, carrs[%d] is assigned carrs[%d] \n", k,k-1);
+					//printf("moving slots, carrs[%d] is assigned carrs[%d] \n", k,k-1);
 					cars_array[k] = cars_array[k-1];
-					printf("value of k:%d \n", k);
+					//printf("value of k:%d \n", k);
 				}
 
 				new_car.x = (distances[index][1] - distances[index][0] - new_car.length)*((double) rand() / (double) (RAND_MAX)) + distances[index][0];
 				cars_array[index] = new_car;
-				printf("Putting in slot %d\n", index);
+				
+				if (VERBOSE) {
+					printf("    Putting car %d at index %d, with x-coord %f \n", new_car.car_nr, index, new_car.x);
+				}
+
+				n_cars++;
+				//printf("Ive Incresed cars\n");
 			} else {
-				printf("Cannot find spot\n");
+				didnt_fit_counter++;
+				if (VERBOSE) {
+					printf("    CANNOT FIND SPACE\n");
+				}
 			}
 			
 
-			n_cars++;
-			printf("Ive Incresed cars\n");
+			if (j == cars_coming -1) {
+				total_free = 0;
+				total_free_percent = 0;
+				for (k = 0; k<n_cars+1; k++) {
+					total_free += distances[k][1] - distances[k][0];
+				}
+				total_free_percent = (total_free / STREET_LENGTH) * 100;		
+			}
+
 
 			free(possible_distances);
-			printf("Ive freed pinter\n");
+			//printf("Ive freed pinter\n");
 			free(distances);
 			//free(distances);
 						
 			
 
 		}
+			//END OF for each car loop
+		if (VERBOSE) {
+			printf("\n    -- Departures --- \n");
+		}
 
-		printf(" \n\n");
+		j = 0;
+		while (j < n_cars) {
+				if (i > cars_array[j].depart_time) {
+					if (VERBOSE) {
+						printf("    Car %d departing, parked at x-coord %f\n", cars_array[j].car_nr, cars_array[j].x);
+					}
 
+					int l;
+					for (l = j; l < n_cars; l++) {
+						cars_array[l] = cars_array[l+1];
+					}
+
+					n_cars--;
+				} else {
+					j++;
+				}
+		}
+		if (VERBOSE) {
+			printf(" \n\n");
+		}
+
+		//fprintf(fp, "iteration %d" ,i);
+		//fputc(fp, "iteration %d" ,i);
+		//fputs(fp, "iteration %d" ,i);
+		fprintf(fp, "  %d  %d  %d  %f  %f \n", i, n_cars, didnt_fit_counter, total_free, total_free_percent);
+
+		//END OF SIMULATION LOOP
 
 	}
 
-	printf("n_cars is %d\n", n_cars );
-	printf("The street at the end of iteration in array %d: ", i);
-	
+	if (VERBOSE) {
+		printf("Number of cars at in the street after complete simulation: %d\n", n_cars );
+	}
+	//printf("The street at the end of iteration in array %d: ", i);
 	
 
-	free(street);
+	
+
+	//free(street);
 	free(cars_array);
 	
-	getch();
+	fclose(fp);
+	//getch();
 	return 0;
+	//END OF MAIN
 
 }

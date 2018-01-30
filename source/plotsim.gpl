@@ -1,0 +1,5 @@
+set key autotitle columnhead
+plot "data.out" u 1:2 w l 
+replot "data.out" u 1:3 w l
+replot "data.out" u 1:4 w l
+replot "data.out" u 1:5 w l

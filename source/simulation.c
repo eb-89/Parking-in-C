@@ -3,14 +3,20 @@
 #include <stdlib.h>
 #include <time.h>
 #include <math.h>
+//#include <random.h>
 //#include "linkedlist.h"
 
+
 #define VERBOSE 0
+
 #define DAY_LENGTH 60*12
 #define CAR_STAY_TIME_MU 10
-#define CAR_STAY_TIME_SIGMA 0.50
-#define NO_OF_CARS_POISSON 30
-#define STREET_LENGTH 500.0
+#define CAR_STAY_TIME_SIGMA 3
+#define NO_OF_CARS_POISSON 3
+#define SAFE_DISTANCE 0.5
+
+//defaults
+#define STREET_LENGTH 200.0
 
 int poisson(int lambda);
 void start_input(int *street_length_units);
@@ -26,6 +32,17 @@ typedef struct {
 	double length;
 } Car;
 
+/*
+
+1. random
+2. first spot avaibale
+3. take the middle spot
+4. smallest 
+
+5. must leave som space. 
+concrete suggestiio: change l, x, , lamda, d security dist
+
+*/
 
 
 
@@ -59,6 +76,7 @@ int poisson(int lambda)
 
 
 
+
 void start_input(int *street_length_units)
 {
 	printf("How long is the steet in parking units? \n");
@@ -68,18 +86,38 @@ void start_input(int *street_length_units)
 
 
 
-int main(void) {
+int main(int argc, char *argv[]) {
+
 
 	FILE *fp;
 	fp = fopen("data.out", "wb");
 	fprintf(fp, "Iteration:  NumOfCars:  CarsThatDontFit:  FreeSpace:  PercentFreeSpace:\n" );
+
+	FILE *fp_aggr;
+	fp_aggr = fopen("data_aggr.out","a");
+
+	double street_length; //Streetlength
+	int sim_num; //simulation number
+	switch (argc) {
+		case 2:
+			sscanf(argv[1], "%lf", &street_length);
+			break;
+		case 3: 
+			sscanf(argv[1], "%lf", &street_length);
+			sscanf(argv[2], "%d", &sim_num);
+			break;
+		default:
+			street_length = STREET_LENGTH;
+			sim_num = 0;
+			break;
+	}
 
 	//int street_length = 5;
 	//int rate_of_arrival;
 	//int rate_of_departure;
 
 	//initialization
-	srand((unsigned) time(NULL));
+		srand((unsigned) time(NULL) + sim_num);
 	//start_input(&street_length);
 
 
@@ -95,6 +133,11 @@ int main(void) {
 	int used_space = 1;
 	int car_index = 0;
 	Car * cars_array = malloc(sizeof(Car) * used_space);
+
+	double min_free_space = street_length; // minimum free space
+	int cars_at_min = 0;
+
+
 	int i; //loop variable
 
 	/*initalization, u can use calloc.
@@ -104,14 +147,17 @@ int main(void) {
 	}
 	*/
 
+	
+
 	//main iteration loop:	
 	for (i = 0; i < DAY_LENGTH; i++)	{
 
+		double total_free; //free space (written at the END of each iteration)
+		double total_free_percent;
 		int j;
 		int cars_coming = poisson(NO_OF_CARS_POISSON);
 		int didnt_fit_counter = 0;
-		double total_free; //free space (written at the END of each iteration)
-		double total_free_percent;
+		
 
 		if (n_cars + cars_coming >= used_space) {
 			used_space = n_cars + cars_coming;
@@ -130,16 +176,27 @@ int main(void) {
 		for (j = 0; j<cars_coming;j++) {
 
 			Car new_car;
+			
 			new_car.car_nr = car_index;
 			new_car.length = 5;
 			new_car.depart_time = i + normal(CAR_STAY_TIME_MU,CAR_STAY_TIME_SIGMA);
+
+			if ((rand() % 101) < 200) {
+				new_car.strategy = 0;
+			} else {
+				new_car.strategy = 1;
+			}
+			
 
 			car_index++;
 			
 			//new_car.x = 50.0;
 
 			if (VERBOSE) {
-				printf("\n     Car: %d, staying 'til iteration %d  \n", new_car.car_nr, new_car.depart_time);
+				printf("\n     Car: %d:   \n", new_car.car_nr);
+				printf("      length: %f  \n", new_car.length);
+				printf("      strategy: %d  \n", new_car.strategy);
+				printf("      staying 'til iteration: %d", new_car.depart_time);
 			}
 
 			double (*distances)[2] = malloc(sizeof(double)*2*(n_cars +1));
@@ -147,7 +204,7 @@ int main(void) {
 				printf("Malloc Failed\n");
 			}
 			distances[0][0] = 0;
-			distances[n_cars][1] = STREET_LENGTH;
+			distances[n_cars][1] = street_length; //STREET_LENGTH;
 
 			int k = 0; //variable for loops
 
@@ -162,9 +219,17 @@ int main(void) {
 				printf("\n    Available empty slots for car %d: \n", new_car.car_nr);
 			
 				for (k = 0; k<n_cars+1; k++) {
-					printf("    %f %f \n" , distances[k][0], distances[k][1]);
+					printf("    %f %f (distance of %f) \n" , distances[k][0], distances[k][1], distances[k][1] - distances[k][0]);
 
 				}
+
+				//printf("\n    Available slots after SAFE_DISTANCE for car %d: \n", new_car.car_nr);
+
+				//for (k = 0; k<n_cars+1; k++) {
+				//	printf("    %f %f \n" , distances[k][0] + SAFE_DISTANCE, distances[k][1] - SAFE_DISTANCE);
+
+				//}
+
 			}
 
 			//possible distances stores INDECES.
@@ -173,10 +238,32 @@ int main(void) {
 
 			int m = 0;
 			for (k = 0; k<n_cars+1; k++) {
-				if ((distances[k][1] - distances[k][0]) >= new_car.length) {
+
+				if (n_cars == 0) {
+					if ((distances[k][1] - distances[k][0]) >= new_car.length) {
 					
 					possible_distances[m] = k;
 					m++;
+
+					}
+
+				} else if (k == 0 || k == n_cars) {
+					if ((distances[k][1] - distances[k][0]) >= new_car.length + SAFE_DISTANCE) {
+					
+					possible_distances[m] = k;
+					m++;
+
+					}
+
+				} else {
+
+
+					if ((distances[k][1] - distances[k][0]) >= new_car.length + 2*SAFE_DISTANCE) {
+					
+					possible_distances[m] = k;
+					m++;
+
+					}
 				}
 				//distances[k+1][0] = cars_array[k].x + cars_array[k].length;
 			}
@@ -185,8 +272,6 @@ int main(void) {
 				int random_spot = rand() % m;
 				int index = possible_distances[random_spot];
 
-				
-
 				for (k = n_cars; k != index; k = k-1) {
 					
 					//printf("moving slots, carrs[%d] is assigned carrs[%d] \n", k,k-1);
@@ -194,7 +279,57 @@ int main(void) {
 					//printf("value of k:%d \n", k);
 				}
 
-				new_car.x = (distances[index][1] - distances[index][0] - new_car.length)*((double) rand() / (double) (RAND_MAX)) + distances[index][0];
+				
+				double allowed_random_x;
+				switch (new_car.strategy)  {
+					case 0: //random avaibale, always nice
+						if (distances[index][0] == 0) {
+							new_car.x = distances[index][0];
+						} else {
+							new_car.x = distances[index][0]  + SAFE_DISTANCE;
+						}
+						break;
+					case 1: //random x in random avaibale
+						if (n_cars == 0 ) {
+							allowed_random_x = (distances[index][1] - distances[index][0] - new_car.length)*((double) rand() / (double) (RAND_MAX));
+							new_car.x = allowed_random_x + distances[index][0];
+							//printf("Putting car in only spot\n");
+						} else if (distances[index][1] == street_length /*STREET_LENGTH*/ ) {
+							allowed_random_x = (distances[index][1] - distances[index][0] - new_car.length - SAFE_DISTANCE)*((double) rand() / (double) (RAND_MAX));
+							new_car.x = allowed_random_x + distances[index][0] + SAFE_DISTANCE;
+							//printf("Putting car in last spot\n");
+						} else if (distances[index][0] == 0) {
+							allowed_random_x = (distances[index][1] - distances[index][0] - new_car.length - SAFE_DISTANCE)*((double) rand() / (double) (RAND_MAX));
+							new_car.x = allowed_random_x + distances[index][0];
+							//printf("Putting car in first spot\n");
+						} else {
+							allowed_random_x = (distances[index][1] - distances[index][0] - new_car.length - 2*SAFE_DISTANCE)*((double) rand() / (double) (RAND_MAX));
+							new_car.x = allowed_random_x + distances[index][0]  + SAFE_DISTANCE;
+						}
+						break;
+					case 2: //always in middle, if you are on the edges, then shift to not break 2m rule
+						new_car.x = ((distances[index][1] - distances[index][0]) - new_car.length) / 2 + distances[index][0];
+						if (n_cars > 0 && distances[index][0] == 0) {
+							if (cars_array[index+1].x - (new_car.x + new_car.length)  < SAFE_DISTANCE) {
+								//printf("trying first, too close, dist= %f\n", cars_array[index+1].x - (new_car.x + new_car.length));
+								
+								//printf("moved the car by %f\n",(SAFE_DISTANCE - (cars_array[index+1].x - (new_car.x + new_car.length))) );
+								new_car.x = new_car.x - (SAFE_DISTANCE - (cars_array[index+1].x - (new_car.x + new_car.length)));
+							}
+						} else if (n_cars > 0 && distances[index][1] == street_length /*STREET_LENGTH*/ ) {
+							if (new_car.x - (cars_array[index-1].x + cars_array[index-1].length) < SAFE_DISTANCE) {
+								//printf("trying last too close, dist= %f\n", new_car.x - (cars_array[index-1].x + cars_array[index-1].length) );
+								
+								//printf("moved the car by %f\n",(SAFE_DISTANCE - (new_car.x - (cars_array[index-1].x + cars_array[index-1].length)) ) ) ;
+								new_car.x = new_car.x + (SAFE_DISTANCE - (new_car.x - (cars_array[index-1].x + cars_array[index-1].length)) );
+							}
+						}
+							
+						
+						break;
+
+				}
+
 				cars_array[index] = new_car;
 				
 				if (VERBOSE) {
@@ -210,8 +345,8 @@ int main(void) {
 				}
 			}
 			
-
-			if (j == cars_coming -1) {
+			/*
+			if (j == cars_coming - 1) {
 				total_free = 0;
 				total_free_percent = 0;
 				for (k = 0; k<n_cars+1; k++) {
@@ -219,7 +354,7 @@ int main(void) {
 				}
 				total_free_percent = (total_free / STREET_LENGTH) * 100;		
 			}
-
+			*/
 
 			free(possible_distances);
 			//printf("Ive freed pinter\n");
@@ -258,17 +393,56 @@ int main(void) {
 		//fprintf(fp, "iteration %d" ,i);
 		//fputc(fp, "iteration %d" ,i);
 		//fputs(fp, "iteration %d" ,i);
+		
+
+		
+		//if (i==0) { break;}
+		
+
+		total_free = street_length;
+		total_free_percent = 0;
+		
+		for (j=0; j<n_cars; j++) {
+			/*
+			if (j == 0) {
+				total_free += cars_array[j].x;
+			} else {
+				total_free += cars_array[j].x - (cars_array[j-1].x + cars_array[j-1].length);
+			}
+			if (j == n_cars-1) {
+				total_free += street_length - (cars_array[j].x + cars_array[j].length);
+			}
+			*/
+			total_free = total_free - (cars_array[j].length);
+		}
+		total_free_percent = (total_free / street_length)*100;
+
+		if (VERBOSE) {
+			printf("Writing: \nIteration:  %d, \nn_cars:  %d, \nDidn't Fit:  %d, \nTotal Free:  %f, \nTotal Free Percent:  %f \n", i, n_cars, didnt_fit_counter, total_free, total_free_percent);
+		}
 		fprintf(fp, "  %d  %d  %d  %f  %f \n", i, n_cars, didnt_fit_counter, total_free, total_free_percent);
-
+		
+		if (total_free < min_free_space) {
+			min_free_space = total_free;
+			cars_at_min = n_cars;
+		}
 		//END OF SIMULATION LOOP
-
 	}
+
+	if (sim_num == 0 || sim_num == 1) {
+		fp_aggr = freopen("data_aggr.out","wb", fp_aggr);
+		fprintf(fp_aggr, "Simulation nr:   Min Free Space:   Cars at min:\n");
+		fprintf(fp_aggr, "%d   %f  %d\n", sim_num, min_free_space, cars_at_min);
+	} else { 
+		fprintf(fp_aggr, "%d   %f  %d\n", sim_num, min_free_space, cars_at_min);
+	}
+
 
 	if (VERBOSE) {
+		printf("\n");
 		printf("Number of cars at in the street after complete simulation: %d\n", n_cars );
+		printf("Street Length: %f \n", street_length);
 	}
-	//printf("The street at the end of iteration in array %d: ", i);
-	
 
 	
 
@@ -276,6 +450,7 @@ int main(void) {
 	free(cars_array);
 	
 	fclose(fp);
+	fclose(fp_aggr);
 	//getch();
 	return 0;
 	//END OF MAIN

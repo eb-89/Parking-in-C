@@ -1,2 +1,2 @@
-Simulation nr:   Min Free Space:   Cars at min:
-0   20.000000  36
+SimulationNr:   MinFreeSpace:   CarsAtMin:   MinFreePercent   GoodDriverPercent   CarsDidntFitTotal  AvgFreePercent  complIters  Streetlength
+1   43.836193  36   21.918096   100.000000  31  43.386518  172 200.000000

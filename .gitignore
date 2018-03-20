@@ -17,7 +17,7 @@ run.bat
 scrappaper.c
 example.cc
 *.jpg
-
+*.h
 # Packages #
 ############
 # it's better to unpack these files and commit the raw source

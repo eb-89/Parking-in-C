@@ -1,10 +1,10 @@
 @echo off
 
-set initiallength=200
+set initiallength=100
 set percent= 100
 setlocal ENABLEDELAYEDEXPANSION
 
-gcc simulation.c -o simulation
+gcc -std=gnu11 simulation.c -o simulation 
 
 cd "C:\Users\Erik\Desktop\Mattekurser\RoadsideParking\source\sim_data"
 del *.out
@@ -20,7 +20,7 @@ for /L %%A IN (1,1,1) DO (
 
 
   REM simulation %%A %%A !leninit! %%A
-  simulation %%A 25 !initiallength! !percent!
+  simulation %%A 30 !initiallength! !percent!
   REM simulation 17 17 !initiallength! !percent!
   
   REM simulation 17 17 550.0 57
@@ -37,6 +37,6 @@ for /L %%A IN (1,1,1) DO (
   REM set /A leninit=!leninit!+1
 )
 
-gnuplot -persist "plotsim_aggr.gpl" 
+REM gnuplot -persist "plotsim_aggr.gpl" 
 
 
